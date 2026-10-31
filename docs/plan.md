@@ -9,9 +9,9 @@
 
 ## Коды исполнителей
 - **PH** — DeepSeek Pro (High)
-- **PL** — DeepSeek Pro (Light)
+- **PL** — DeepSeek Pro (Low)
 - **FH** — DeepSeek Flash (High)
-- **FL** — DeepSeek Flash (Light)
+- **FL** — DeepSeek Flash (Low)
 
 ## Распределение задач по агентам (исполнители)
 
