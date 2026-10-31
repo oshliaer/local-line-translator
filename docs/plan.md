@@ -2,6 +2,11 @@
 
 Ишью: https://github.com/oshliaer/local-line-translator/issues/1. Хэндов (риски): `docs/handoff.md`.
 
+## Что переводим (эталонный источник)
+- Канонический пример — `sections/00-setup/README.md` из [learn-deepseek-harness](https://github.com/hardness1020/learn-deepseek-harness).
+- Локальная фикстура: `tests/fixtures/00-setup-README.md` (239 строк) — на ней проверяем результат.
+- Покрывает: заголовки, списки, цитаты, таблицы, ссылки, inline-код, блоки кода (`python`/`text`/`bash`), ASCII-схему.
+
 ## Коды исполнителей
 - **PH** — DeepSeek Pro (High)
 - **PL** — DeepSeek Pro (Low/Light)
@@ -32,7 +37,7 @@
 
 ## Фаза 0 — Spike (разведка рисков) — обязательна до кода — *0a: FH, 0b: PH*
 - [FH] CPU-only torch + transformers + sentencepiece; зафиксировать версии (заморозить в requirements).
-- [FH] Скачать `Helsinki-NLP/opus-mt-en-ru`; замерить пиковое ОЗУ и задержку на строку.
+- [FH] Скачать `Helsinki-NLP/opus-mt-en-ru`; замерить пиковое ОЗУ, wall-clock на строку и суммарно на эталонный файл.
 - [PH] Проверить выживаемость нескольких форматов плейсхолдеров в MarianMT; выбрать устойчивый.
 - [PH] Проверить поведение модели на: блоке кода, HTML-теге, ссылке, пустой строке, строке с `\n`.
 - Выход: подтверждённый формат плейсхолдера + бюджет ресурсов + fallback-стратегия.
@@ -51,6 +56,7 @@
 - [ ] Blind: сверка числа строк + возврат всех маркеров (count и полное множество).
 - [ ] Diff-Error: детектор аномалий, запись diff-лога, отчёт `[VALIDATION WARNING]`.
 - [ ] Логи `[VALIDATION SUCCESS]` / `[VALIDATION WARNING]` / `[ERROR]` / `[SKIP]` / `[INFO]`.
+- [ ] Логировать wall-clock: на файл и суммарно на `--dir` (`[TIMING]`). Токены основной модели не замеряем.
 
 ## Фаза 4 — Устойчивость — *FH*
 - [ ] Атомарная запись, CRLF/LF, отсутствие завершающего `\n`, длинные строки.
@@ -59,8 +65,8 @@
 
 ## Фаза 5 — Упаковка — *5a: FL, 5b: FH*
 - [FL] `requirements.txt` (CPU torch) + README (установка, запуск, кэш модели, offline).
-- [FL] Фикстуры: `.md` с кодом/ссылками/HTML, CRLF, пустой файл, файл без завершающего переноса.
-- [FH] Smoke-тест + интеграционная проверка: запуск через CLI и парсинг логов агентом.
+- [FL] Фикстуры: эталон `tests/fixtures/00-setup-README.md` + синтетические (CRLF, пустой файл, без завершающего переноса).
+- [FH] Smoke + интеграция: перевод эталона `tests/fixtures/00-setup-README.md`, проверка строк/кода/ссылок и парсинг логов агентом.
 
 ## Финальное ревью (Lead) — *PH*
 - [ ] Ревью итогового диффа, сквозной запуск CLI, проверка контракта stdout.
@@ -77,8 +83,10 @@ local-line-translator/
   requirements.txt
   README.md
   docs/              # issue.md, handoff.md, plan.md
-  tests/fixtures/
+  tests/fixtures/00-setup-README.md  # эталонный файл для проверки
 ```
 
 ## Критерии готовности
-См. Definition of Done в https://github.com/oshliaer/local-line-translator/issues/1.
+- [ ] Перевод эталона `tests/fixtures/00-setup-README.md` проходит проверку: число строк совпадает, блоки кода и ссылки/inline-код сохранены.
+- [ ] Логируется wall-clock (на строку, на файл, суммарно на `--dir`); токены основной модели не замеряем.
+- [ ] Остальное — Definition of Done в https://github.com/oshliaer/local-line-translator/issues/1.

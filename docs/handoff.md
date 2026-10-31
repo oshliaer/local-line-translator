@@ -4,9 +4,10 @@
 - Задача изучена, требования разобраны, код ещё **НЕ** писался.
 - Создан GitHub issue: [https://github.com/oshliaer/local-line-translator/issues/1](https://github.com/oshliaer/local-line-translator/issues/1) (№1).
 - Настоящий документ — передача контекста; `docs/plan.md` — план разработки; `docs/issue.md` — текст ишью.
+- Эталон для перевода: `sections/00-setup/README.md` из [learn-deepseek-harness](https://github.com/hardness1020/learn-deepseek-harness) → локально `tests/fixtures/00-setup-README.md` (239 строк).
 
 ## Окружение (факты)
-- Репозиторий: `oshliaer/local-line-translator` (сейчас пустой, без коммитов; origin настроен, протокол git — ssh).
+- Репозиторий: `oshliaer/local-line-translator` (origin https; push через локальный `credential.helper !gh auth git-credential` — GCM в среде сломан, `~/.gitconfig` read-only).
 - `gh` CLI авторизован как `oshliaer` (scope `repo`). Ишью уже создан.
 - Python: проверить версию перед началом (нужен ≥3.8 для transformers; для новых torch — 3.9–3.12).
 - Модель `Helsinki-NLP/opus-mt-en-ru` (~300 МБ) скачивается с Hugging Face один раз при первом запуске; кэш лежит в `HF_HOME` (по умолчанию `~/.cache/huggingface`).
