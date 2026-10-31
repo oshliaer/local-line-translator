@@ -36,8 +36,10 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import sys
 import time
+from pathlib import Path
 
 os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
@@ -46,6 +48,7 @@ DEFAULT_SEED = 0
 DEFAULT_THREADS = 8
 NUM_BEAMS = 4
 MAX_LENGTH = 512
+REPO_ROOT = Path(__file__).resolve().parent.parent
 
 DOWNLOAD_ALLOW_PATTERNS = ["*.json", "*.spm", "*.txt", "*.model", "pytorch_model.bin", "model.safetensors"]
 
@@ -73,11 +76,13 @@ FAMILIES = [
     ("paren", "(IC{i})"),
     ("angle", "<IC{i}>"),
     # --- Unicode symbols (rare, likely atomic) ---
+    ("section_X", "§X{i}§"),
     ("section", "§IC{i}§"),
     ("paragraph", "¶IC{i}¶"),
     ("dagger", "†IC{i}†"),
     ("double_dagger", "‡IC{i}‡"),
     ("lozenge", "◊IC{i}◊"),
+    ("black_diamond_X", "◆X{i}◆"),
     ("black_diamond", "◆IC{i}◆"),
     ("white_diamond", "◇IC{i}◇"),
     ("bullet", "•IC{i}•"),
@@ -119,7 +124,8 @@ def main() -> int:
 
     log("INFO", f"python={sys.version.split()[0]} torch={torch.__version__} "
                 f"transformers={transformers.__version__} device=cpu")
-    log("INFO", f"seed={args.seed} threads={args.threads} beams={NUM_BEAMS} max_length={MAX_LENGTH}")
+    log("INFO", f"seed={args.seed} threads={args.threads} beams={NUM_BEAMS} max_length={MAX_LENGTH} "
+                f"cuda_available={torch.cuda.is_available()}")
     log("INFO", f"model={args.model}")
 
     if args.no_download:
@@ -134,6 +140,7 @@ def main() -> int:
 
     tokenizer = MarianTokenizer.from_pretrained(args.model)
     model = MarianMTModel.from_pretrained(args.model)
+    model.to("cpu")
     model.eval()
     log("INFO", f"model_num_beams={getattr(model.config, 'num_beams', 'n/a')} "
                 f"max_length={getattr(model.config, 'max_length', 'n/a')} "
@@ -171,9 +178,9 @@ def main() -> int:
         survived = 0
         detail = []
         for ph in phs:
-            ok = ph in out
+            ok = out.count(ph) == src.count(ph)
             survived += int(ok)
-            detail.append(f"{ph!r}:{'OK' if ok else 'LOST'}")
+            detail.append(f"{ph!r}:{'OK' if ok else 'LOST'}(in={src.count(ph)} out={out.count(ph)})")
         rows.append({"name": name, "survived": survived, "out": out, "detail": detail})
         print(f"[B] {name:20s} survived={survived}/3  {' | '.join(detail)}")
         print(f"    in : {src}")
@@ -227,7 +234,7 @@ def main() -> int:
     e_summary = {}
     for (name, ctx_name, src, phs), out in zip(e_rows, e_outputs):
         present = [ph for ph in phs if ph in src]
-        ok = all(ph in out for ph in present)
+        ok = all(out.count(ph) == src.count(ph) for ph in present)
         e_summary.setdefault(name, []).append(ok)
         if not ok:
             print(f"[E] {name:20s} ctx={ctx_name:12s} FAIL  in ={src}")
@@ -243,14 +250,25 @@ def main() -> int:
 
     # --- Part D: scoring + recommendation ---------------------------------
     log("D", "=== Part D: scoring + recommendation ===")
-    RARE = set("$#@%^&+=~§¶†‡◊◆◇•●▪★⟦⟧《》「」")
+    # Genuinely rare Unicode delimiters. ASCII punctuation ($ # @ % & + ~ =)
+    # is common in markdown/code and is NOT "rare", so it does not qualify here.
+    RARE = set("§¶†‡◊◆◇•●▪★⟦⟧《》「」")
 
     def is_rare_delimited(tpl):
+        # Check the FRAME symbols (non-alphanumeric delimiters around the
+        # label/digit) are rare. The label letters (X/IC/M) are intentional and
+        # must NOT make the marker look "common".
         core = tpl.replace("{i}", "")
-        return bool(core) and all(c in RARE for c in core)
+        delims = [c for c in core if not c.isalnum()]
+        return bool(delims) and all(c in RARE for c in delims)
+
+    def is_bare_digit(name):
+        # Digit-only core (no opaque letter label) collides with real numbers.
+        return name.startswith("numeric_")
 
     # A usable placeholder must (a) survive 3/3 verbatim in Part B, (b) use a
-    # rare delimiter (low collision risk), and (c) NOT be a bare digit.
+    # rare delimiter (low collision risk), and (c) carry an opaque letter label
+    # (not a bare digit that collides with real numbers).
     print(f"[D] {'name':20s} {'surv':>4s} {'atomic':>6s} {'rare-delim':>11s} verdict")
     best = None
     for name, tpl in FAMILIES:
@@ -258,22 +276,73 @@ def main() -> int:
         atomic = len(tokenizer.tokenize(ph0)) == 1
         rare = is_rare_delimited(tpl)
         row = next(r for r in rows if r["name"] == name)
-        if name == "numeric_plain":
-            verdict = "reject (collides with real digits)"
+        if is_bare_digit(name):
+            verdict = "reject (digit core: collides with numbers)"
         elif row["survived"] != 3:
             verdict = "reject (lost)"
         elif not rare:
             verdict = "works but delimiter common"
         else:
             verdict = "candidate"
-        if row["survived"] == 3 and rare and name != "numeric_plain":
+        if row["survived"] == 3 and rare and not is_bare_digit(name):
             if best is None:
                 best = (name, tpl)
         print(f"[D] {name:20s} {row['survived']:>4d} {str(atomic):>6s} {str(rare):>11s} {verdict}")
     if best:
-        log("D", f"RECOMMENDED family={best[0]!r} template={best[1]!r} (3/3 verbatim + rare delimiter)")
+        log("D", f"RECOMMENDED family={best[0]!r} template={best[1]!r} (3/3 verbatim + rare delimiter + label)")
     else:
-        log("D", "no rare-delimited 3/3 survivor; review Part B manually")
+        log("D", "no rare-delimited labeled 3/3 survivor; review Part B manually")
+
+    # --- Part F: placeholders on real inline positions of the fixture ---------
+    log("F", "=== Part F: §X{n}§ on real inline positions of the fixture ===")
+    LINK_RE = re.compile(r"\[([^\]]*)\]\(([^)]*)\)")
+    CODE_RE = re.compile(r"`([^`]+)`")
+
+    def protect_inline(line):
+        mapping = {}
+        counter = [0]
+
+        def new_ph():
+            k = f"§X{counter[0]}§"
+            counter[0] += 1
+            return k
+
+        def link_repl(m):
+            k = new_ph()
+            mapping[k] = m.group(2)  # protect URL only, keep [text] translatable
+            return f"[{m.group(1)}]({k})"
+
+        def code_repl(m):
+            k = new_ph()
+            mapping[k] = m.group(0)  # protect the whole inline-code span
+            return k
+
+        line = LINK_RE.sub(link_repl, line)
+        line = CODE_RE.sub(code_repl, line)
+        return line, mapping
+
+    def restore(line, mapping):
+        for k, v in mapping.items():
+            line = line.replace(k, v)
+        return line
+
+    fixture = REPO_ROOT / "tests" / "fixtures" / "00-setup-README.md"
+    fixture_lines = fixture.read_text(encoding="utf-8").splitlines() if fixture.is_file() else []
+    for n in (3, 30, 57, 149):
+        if n > len(fixture_lines):
+            continue
+        line = fixture_lines[n - 1]
+        prot, mapping = protect_inline(line)
+        if not mapping:
+            continue
+        out = translate([prot])[0]
+        lost = [k for k in mapping if out.count(k) != prot.count(k)]
+        restored = restore(out, mapping)
+        print(f"[F] fixture line {n}:")
+        print(f"    in  : {line}")
+        print(f"    prot: {prot}")
+        print(f"    out : {out}")
+        print(f"    lost: {lost if lost else 'none'}  restored: {restored}")
 
     return 0
 
