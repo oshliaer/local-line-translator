@@ -1,0 +1,33 @@
+# EN→RU local translator — CPU-only environment, Python 3.12
+#
+# Python 3.12 (not the system 3.14): PyTorch CPU wheels stop at cp313, so the
+# venv is created with uv, which downloads its own CPython:
+#
+#   uv venv --python 3.12 .venv
+#
+# Install in TWO steps. torch must come from the PyTorch CPU index, otherwise
+# pip/uv resolves the CUDA build and pulls ~2 GB of nvidia-* wheels even though
+# we never touch a GPU:
+#
+#   uv pip install --python .venv/bin/python \
+#       torch==2.15.0+cpu --index-url https://download.pytorch.org/whl/cpu
+#   uv pip install --python .venv/bin/python -r requirements.txt
+#
+# (with plain pip the same commands work without "--python ...".)
+#
+# The model weights (Helsinki-NLP/opus-mt-en-ru, ~300 MB of the ~590 MB repo;
+# rust_model.ot is skipped) are downloaded on the first run into $HF_HOME
+# (default ~/.cache/huggingface). If $HOME is read-only, export HF_HOME to a
+# writable directory — see HANDOFF.md.
+
+# --- direct dependencies (exact versions validated in phase 0a) ---
+torch==2.15.0+cpu        # CPU build; torch.cuda.is_available() == False verified
+transformers==4.57.6     # 4.x pinned on purpose: MarianMT is a legacy architecture
+sentencepiece==0.2.2     # required by MarianTokenizer (source.spm / target.spm)
+sacremoses==0.2.0        # optional; removes the "pip install sacremoses" warning
+
+# --- transitive pins that matter for reproducibility ---
+tokenizers==0.22.2
+huggingface-hub==0.36.2
+numpy==2.5.4
+safetensors==0.8.0

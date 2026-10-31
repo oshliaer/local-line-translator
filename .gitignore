@@ -6,3 +6,7 @@ venv/
 *.egg-info/
 .pytest_cache/
 .mypy_cache/
+
+# Local spike artefacts (HF cache, uv cache, scratch output) — not part of the repo
+.tmp/
+
