@@ -1,5 +1,5 @@
 # local-line-translator
 
-Автономный локальный переводчик технической документации (`.md`, `.txt`) EN→RU на CPU (`Helsinki-NLP/opus-mt-en-ru`).
+Автономный локальный переводчик технической документации (`.md`, `.txt`) EN→RU на CPU (`Helsinki-NLP/opus-mt-en-ru`), вызываемый через CLI DeepSeek Harness.
 
-> Статус: на этапе планирования. План — в `docs/plan.md`, живой хэндов — в `HANDOFF.md`.
+Подробности и правила — в `AGENTS.md`, `HANDOFF.md` и `docs/`.
