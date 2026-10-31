@@ -5,6 +5,34 @@
 
 Ключевая идея — полностью перенести вычислительную нагрузку перевода на локальный CPU и сэкономить до 99% токенов удалённого агента: агент получает только финальный статус или точечные diff-логи ошибок, а не читает файлы целиком.
 
+## Мета
+
+| Поле | Значение |
+|---|---|
+| **Тип** | `enhancement` — новая функциональность |
+| **Область** | Локальный перевод EN→RU, Python CLI (MarianMT) |
+| **Фаза** | 0 (Spike) → 1–5 + финальное ревью; распределение — [docs/plan.md](https://github.com/oshliaer/local-line-translator/blob/main/docs/plan.md) |
+| **Модель** | `Helsinki-NLP/opus-mt-en-ru` (~300 МБ), лицензия CC-BY-4.0 |
+| **Среда** | Linux x86_64, 12 vCPU, 31 ГБ ОЗУ (пик замеряется в 0a); Python 3.12 через `uv` (системный 3.14 без CPU-wheels torch) |
+| **Устройство** | CPU-only (GPU запрещён) |
+| **Исполнители** | PH/PL — DeepSeek Pro; FH/FL — DeepSeek Flash; финальный gate — PH |
+| **Цель по токенам** | ≥99% экономии: агент читает только статус и точечный diff-лог |
+| **Риск №1** | Выживаемость плейсхолдеров в SentencePiece (spike 0b) |
+| **Зависимости** | `torch` (CPU-only), `transformers`, `sentencepiece`; сеть — только при первом скачивании |
+| **Артефакты** | `requirements.txt`, `README.md`, `main.py` + модули, `tests/fixtures/`, `HANDOFF.md` |
+
+```yaml
+# issue-meta (машиночитаемое)
+id: oshliaer/local-line-translator#1
+type: feature
+milestone: v0.1.0-mvp
+model: Helsinki-NLP/opus-mt-en-ru
+device: cpu
+python: "3.12"
+phases: [0a, 0b, 1, 2, 3, 4, 5a, 5b]
+stdout_contract: ["[VALIDATION SUCCESS]", "[VALIDATION WARNING]", "[ERROR]", "[SKIP]", "[INFO]", "[TIMING]"]
+```
+
 ## Эталонный источник для проверки
 - Реальный пример того, что нужно переводить: `sections/00-setup/README.md` из [learn-deepseek-harness](https://github.com/hardness1020/learn-deepseek-harness).
 - Локальная фикстура: `tests/fixtures/00-setup-README.md` (239 строк). На ней проверяем корректность перевода (число строк, блоки кода, ссылки, inline-код, таблицы).
